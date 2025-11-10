@@ -92,7 +92,7 @@ python gomoku_gui_client.py
 - Non-blocking concurrent game rooms
 - Thread-safe game state management with RLock
 
-### Advanced Features (Extra Credit Implementation)
+### Advanced Features
 
 **1. Spectator-only Chat Mode**
 - Spectators have a dedicated chat channel separate from players
