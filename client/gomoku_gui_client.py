@@ -169,10 +169,15 @@ class GomokuGUIClient:
         if msg_type == MessageType.ERROR:
             error_msg = data.get('message', 'Unknown error')
             print(f"[ERROR] {error_msg}")
-            self.add_chat_message("SYSTEM", error_msg, "error")
+            
+            # 로비에서는 시스템 메시지로, 게임 중에는 채팅으로 표시
+            if self.in_lobby:
+                self.set_system_message(error_msg)
+            else:
+                self.add_chat_message("SYSTEM", error_msg, "error")
             
             # 재연결 실패 처리
-            if "reconnect" in error_msg.lower() or "not found" in error_msg.lower():
+            if "reconnect" in error_msg.lower() or "session" in error_msg.lower():
                 self.reconnect_available = False
                 self.was_playing = False
                 
@@ -218,6 +223,9 @@ class GomokuGUIClient:
                 self.spectator_chat_messages = []
                 self.chat_input = ""
                 self.spectator_chat_input = ""
+                # 상대방 연결 상태 리셋
+                self.opponent_disconnected = False
+                self.opponent_disconnect_time = None
                 print(f"[DEBUG] Room entered. Status: {self.game_status}, Role: {self.my_role}")
             elif "Left room" in data.get("message", "") or "lobby" in data.get("message", "").lower():
                 # 룸에서 나갔을 때 로비로 돌아가기
@@ -363,6 +371,9 @@ class GomokuGUIClient:
                 self.spectator_chat_messages = []
                 self.chat_input = ""
                 self.spectator_chat_input = ""
+                # 상대방 연결 상태 리셋
+                self.opponent_disconnected = False
+                self.opponent_disconnect_time = None
         
         elif msg_type == MessageType.ROOM_UPDATE:
             # 룸 상태 업데이트 (플레이어 나갔을 때 등)

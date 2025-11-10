@@ -383,7 +383,7 @@ class GameRoom:
             )
             self.timer_thread.daemon = True
             self.timer_thread.start()
-            print(f"[DEBUG] Timer thread started: {self.timer_thread.name}")
+            print(f"[DEBUG] Timer thread started: {self.timer_thread.name}, is_alive: {self.timer_thread.is_alive()}")
 
     def stop_timer(self):
         """타이머 정지"""
@@ -408,11 +408,21 @@ class GameRoom:
         """타이머 워커 (별도 스레드)"""
         print(f"[DEBUG] Timer worker started for room {self.room_id}")
         
-        # 첫 번째 업데이트는 항상 전체 시간(60초)을 보냄
-        first_update = True
+        # 첫 번째 업데이트를 즉시 보냄 (60초)
+        callback_func(self.room_id, "update", self.turn_time_limit)
+        print(f"[DEBUG] Timer first update: {self.turn_time_limit} seconds")
         
         while not self.timer_stop_event.is_set():
             try:
+                # 1초 대기
+                for _ in range(10):  # 0.1초씩 10번 = 1초
+                    if self.timer_stop_event.is_set():
+                        break
+                    time.sleep(0.1)
+                
+                if self.timer_stop_event.is_set():
+                    break
+                    
                 with self.lock:
                     if self.turn_start_time is None:
                         print(f"[DEBUG] Timer worker stopping - turn_start_time is None")
@@ -420,25 +430,23 @@ class GameRoom:
                     elapsed = time.time() - self.turn_start_time
                     remaining = self.turn_time_limit - elapsed
                 
-                if first_update:
-                    # 첫 번째 업데이트는 항상 전체 시간을 보냄
-                    callback_func(self.room_id, "update", self.turn_time_limit)
-                    first_update = False
-                    print(f"[DEBUG] Timer first update: {self.turn_time_limit} seconds")
-                elif remaining <= 0:
+                if remaining <= 0:
                     # 시간 초과
                     print(f"[DEBUG] Timer timeout for room {self.room_id}")
-                    callback_func(self.room_id, "timeout")
+                    # timeout 처리를 별도 스레드로 실행하여 데드락 방지
+                    import threading
+                    timeout_thread = threading.Thread(
+                        target=callback_func,
+                        args=(self.room_id, "timeout"),
+                        name=f"Timeout-{self.room_id}"
+                    )
+                    timeout_thread.daemon = True
+                    timeout_thread.start()
                     break
                 else:
                     # 매 1초마다 업데이트
                     callback_func(self.room_id, "update", int(remaining))
-                    
-                # 스레드 중단 체크를 위해 짧은 간격으로 sleep
-                for _ in range(10):  # 0.1초씩 10번 = 1초
-                    if self.timer_stop_event.is_set():
-                        break
-                    time.sleep(0.1)
+                    print(f"[DEBUG] Timer update: {int(remaining)} seconds remaining")
             except Exception as e:
                 print(f"[DEBUG] Timer worker error: {e}")
                 break

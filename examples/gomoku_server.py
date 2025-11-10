@@ -187,8 +187,14 @@ class GomokuServer:
             self.handle_reconnect(client_socket, reconnect_data)
             return
 
+        # 게임 진행 중이고 플레이어가 연결 끊김 상태인지 확인
+        if room.status == "playing" and room.disconnected_players:
+            error = Protocol.create_error("Cannot join: Game in progress")
+            client_socket.send(error)
+            return
+
         if room.is_full():
-            error = Protocol.create_error("Room is full")
+            error = Protocol.create_error("Room is full - already has 2 players")
             client_socket.send(error)
             return
 
@@ -635,7 +641,10 @@ class GomokuServer:
                     return
         
         # 일반적인 재연결 실패
-        error = Protocol.create_error("No reconnectable session found or timeout expired")
+        error = Protocol.create_error(
+            f"Cannot reconnect: No game session found for player '{player_name}'. "
+            "You can only reconnect within 3 minutes of disconnection using the same name."
+        )
         client_socket.send(error)
 
     def remove_from_room(self, client_socket, room, role, is_disconnect=False):
